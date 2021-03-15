@@ -10,9 +10,9 @@ namespace WinRTGuidPatcher
 {
     class FolderAssemblyResolver : DefaultAssemblyResolver
     {
-        public FolderAssemblyResolver(DirectoryInfo directory)
+        public FolderAssemblyResolver(params DirectoryInfo[] directories)
         {
-            foreach (var file in directory.EnumerateFiles("*.dll"))
+            foreach (var file in directories.SelectMany(d => d.EnumerateFiles("*.dll")))
             {
                 try
                 {

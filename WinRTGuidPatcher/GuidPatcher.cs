@@ -31,13 +31,13 @@ namespace WinRTGuidPatcher
         private readonly TypeDefinition guidDataBlockType;
         private SignatureGenerator signatureGenerator;
 
-        public GuidPatcher(string assemblyPath)
+        public GuidPatcher(string assemblyPath, IAssemblyResolver assemblyResolver)
         {
             assembly = AssemblyDefinition.ReadAssembly(assemblyPath, new ReaderParameters(ReadingMode.Deferred)
             {
                 ReadWrite = true,
                 InMemory = true,
-                AssemblyResolver = new FolderAssemblyResolver(new DirectoryInfo(Path.GetDirectoryName(assemblyPath)!)),
+                AssemblyResolver = assemblyResolver,
                 ThrowIfSymbolsAreNotMatching = false,
                 SymbolReaderProvider = new DefaultSymbolReaderProvider(false),
                 ApplyWindowsRuntimeProjections = false
@@ -53,7 +53,7 @@ namespace WinRTGuidPatcher
 
             guidType = new TypeReference("System", "Guid", assembly.MainModule, assembly.MainModule.TypeSystem.CoreLibrary).Resolve();
 
-            readOnlySpanOfByte = new GenericInstanceType(new TypeReference("System", "ReadOnlySpan`1", assembly.MainModule, assembly.MainModule.TypeSystem.CoreLibrary))
+            readOnlySpanOfByte = new GenericInstanceType(new TypeReference("System", "ReadOnlySpan`1", assembly.MainModule, assembly.MainModule.TypeSystem.CoreLibrary, true))
             {
                 GenericArguments =
                 {
@@ -294,11 +294,11 @@ namespace WinRTGuidPatcher
                 guidDataMethodReference = genericGuidDataMethodReference;
             }
 
-            ReplaceWithCallToGuidDataGetter(body, startILIndex, numberOfInstructionsToOverwrite, guidDataMethod);
+            ReplaceWithCallToGuidDataGetter(body, startILIndex, numberOfInstructionsToOverwrite, guidDataMethodReference);
             return true;
         }
 
-        private void ReplaceWithCallToGuidDataGetter(MethodBody body, int startILIndex, int numberOfInstructionsToOverwrite, MethodDefinition guidDataMethod)
+        private void ReplaceWithCallToGuidDataGetter(MethodBody body, int startILIndex, int numberOfInstructionsToOverwrite, MethodReference guidDataMethod)
         {
             var il = body.GetILProcessor();
             il.Replace(startILIndex, Instruction.Create(OpCodes.Call, guidDataMethod));

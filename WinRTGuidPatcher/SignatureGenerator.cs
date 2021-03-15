@@ -152,7 +152,7 @@ namespace WinRTGuidPatcher
                 }
             }
 
-            if (type == assembly.MainModule.TypeSystem.String.Resolve())
+            if (typeDef == assembly.MainModule.TypeSystem.String.Resolve())
             {
                 return new BasicSignaturePart(SignatureType.@string);
             }
@@ -168,7 +168,7 @@ namespace WinRTGuidPatcher
                 throw new InvalidOperationException();
             }
 
-            if (typeDef.BaseType.Name == "MulticastDelegate")
+            if (typeDef.BaseType?.Name == "MulticastDelegate")
             {
                 return new NonGenericDelegateSignature(guidAttributeValue.Value);
             }
@@ -195,7 +195,16 @@ namespace WinRTGuidPatcher
                 return false;
             }
 
-            defaultInterface = (TypeReference)runtimeClassAttribute.ConstructorArguments[0].Value;
+            string defaultInterfacePropertyName = (string)runtimeClassAttribute.ConstructorArguments[0].Value;
+
+            var defaultInterfaceProperty = rcDef.Properties.FirstOrDefault(prop => prop.Name == defaultInterfacePropertyName);
+
+            if (defaultInterfaceProperty is null)
+            {
+                return false;
+            }
+
+            defaultInterface = defaultInterfaceProperty.PropertyType;
             return true;
         }
     }

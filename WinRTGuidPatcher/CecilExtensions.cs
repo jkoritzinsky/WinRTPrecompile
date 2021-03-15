@@ -77,7 +77,7 @@ namespace WinRTGuidPatcher
                 return td;
             }
 
-            td = new TypeDefinition(null, "<GuidDataBlock>", TypeAttributes.AutoClass | TypeAttributes.Sealed | TypeAttributes.NestedAssembly | TypeAttributes.SequentialLayout | TypeAttributes.AnsiClass, new TypeReference("System", "ValueType", parentType.Module, parentType.Module.TypeSystem.CoreLibrary))
+            td = new TypeDefinition(null, typeName, TypeAttributes.AutoClass | TypeAttributes.Sealed | TypeAttributes.NestedAssembly | TypeAttributes.SequentialLayout | TypeAttributes.AnsiClass, new TypeReference("System", "ValueType", parentType.Module, parentType.Module.TypeSystem.CoreLibrary))
             {
                 PackingSize = 1,
                 ClassSize = 16
@@ -88,13 +88,13 @@ namespace WinRTGuidPatcher
             return td;
         }
 
-        internal static TypeReference? FindTypeReference(ModuleDefinition module, string ns, string name, string basicAssemblyName)
+        internal static TypeReference? FindTypeReference(ModuleDefinition module, string ns, string name, string basicAssemblyName, bool isValueType)
         {
             foreach (var asm in module.AssemblyReferences)
             {
                 if (asm.Name == basicAssemblyName || asm.Name.StartsWith($"{basicAssemblyName},"))
                 {
-                    TypeReference typeRef = new TypeReference(ns, name, module, asm);
+                    TypeReference typeRef = new TypeReference(ns, name, module, asm, isValueType);
                     if (typeRef.Resolve() != null)
                     {
                         return module.ImportReference(typeRef);
@@ -102,7 +102,12 @@ namespace WinRTGuidPatcher
                     break;
                 }
             }
-            return null;
+            var resolved = module.AssemblyResolver.Resolve(new AssemblyNameReference(basicAssemblyName, default));
+            if (resolved is null)
+            {
+                return null;
+            }
+            return resolved.MainModule.Types.FirstOrDefault(t => t.Namespace == ns && t.Name == name);
         }
     }
 }

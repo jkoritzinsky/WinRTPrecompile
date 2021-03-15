@@ -124,7 +124,7 @@ namespace WinRTGuidPatcher
             var readOnlySpanOfByteArrayCtor = module.ImportReference(
                 new MethodReference(".ctor", module.TypeSystem.Void, readOnlySpanOfByte)
                 {
-                    Parameters = { new ParameterDefinition(readOnlySpanOfByte.Resolve().GenericParameters[0]) }
+                    Parameters = { new ParameterDefinition(new ArrayType(readOnlySpanOfByte.Resolve().GenericParameters[0])) }
                 },
                 readOnlySpanOfByte);
 
@@ -140,6 +140,12 @@ namespace WinRTGuidPatcher
             foreach (var arg in guidDataGetterMethod.GenericParameters)
             {
                 instantiatedCacheType.GenericArguments.Add(arg);
+            }
+
+            var selfInstantiatedCacheType = new GenericInstanceType(cacheType);
+            foreach (var param in cacheType.GenericParameters)
+            {
+                selfInstantiatedCacheType.GenericArguments.Add(param);
             }
 
             var cacheField = new FieldDefinition("iidData", FieldAttributes.Static | FieldAttributes.Assembly, new ArrayType(module.ImportReference(module.TypeSystem.Byte)));
@@ -163,7 +169,7 @@ namespace WinRTGuidPatcher
             var systemType = module.ImportReference(
                 new TypeReference("System", "Type", module, module.TypeSystem.CoreLibrary));
 
-            var getTypeFromHandleMethod = systemType.Resolve().Methods.First(m => m.Name == "GetTypeFromHandle");
+            var getTypeFromHandleMethod = module.ImportReference(systemType.Resolve().Methods.First(m => m.Name == "GetTypeFromHandle"));
             var getSignatureMethod = module.ImportReference(
                 new MethodReference("GetSignature", module.TypeSystem.String, guidGeneratorType)
                 {
@@ -171,7 +177,7 @@ namespace WinRTGuidPatcher
                     HasThis = false
                 });
 
-            var encodingType = CecilExtensions.FindTypeReference(module, "System.Text", "Encoding", "System.Runtime")!;
+            var encodingType = CecilExtensions.FindTypeReference(module, "System.Text", "Encoding", "System.Runtime", false)!;
             var utf8EncodingGetter = module.ImportReference(new MethodReference("get_UTF8", encodingType, encodingType));
             var encodingGetBytes = module.ImportReference(
                 new MethodReference("GetBytes", new ArrayType(module.TypeSystem.Byte), encodingType)
@@ -193,20 +199,20 @@ namespace WinRTGuidPatcher
                     case StringStep(string str):
                         {
                             byte[] segmentBytes = Encoding.UTF8.GetBytes(str);
-                            var staticDataField = new FieldDefinition($"<SignatureDataPart={i}>{describedType.FullName}", FieldAttributes.Private | FieldAttributes.InitOnly | FieldAttributes.Static, CecilExtensions.GetOrCreateDataBlockType(implementationDetailsType, segmentBytes.Length))
+                            var staticDataField = new FieldDefinition($"<SignatureDataPart={i}>", FieldAttributes.Private | FieldAttributes.InitOnly | FieldAttributes.Static, CecilExtensions.GetOrCreateDataBlockType(implementationDetailsType, segmentBytes.Length))
                             {
                                 InitialValue = segmentBytes
                             };
-                            implementationDetailsType.Fields.Add(staticDataField);
+                            cacheType.Fields.Add(staticDataField);
 
                             // Load a ReadOnlySpan<byte> of the signature segment into the local for this step.
-                            il.Emit(OpCodes.Ldsflda, staticDataField);
+                            il.Emit(OpCodes.Ldsflda, new FieldReference(staticDataField.Name, staticDataField.FieldType, selfInstantiatedCacheType));
                             il.Emit(OpCodes.Ldc_I4, segmentBytes.Length);
-                            il.Emit(OpCodes.Dup);
                             il.Emit(OpCodes.Newobj, readOnlySpanOfBytePtrCtor);
                             il.Emit(OpCodes.Stloc, signatureParts[i]);
                             // signatureLength += staticData.Length
                             il.Emit(OpCodes.Ldloc, fullSignatureLength);
+                            il.Emit(OpCodes.Ldc_I4, segmentBytes.Length);
                             il.Emit(OpCodes.Add_Ovf);
                             il.Emit(OpCodes.Stloc, fullSignatureLength);
                         }
@@ -253,7 +259,7 @@ namespace WinRTGuidPatcher
                 }
             }
 
-            var span = CecilExtensions.FindTypeReference(module, "System", "Span`1", "System.Runtime");
+            var span = CecilExtensions.FindTypeReference(module, "System", "Span`1", "System.Runtime", true);
 
             if (span is null)
             {
@@ -277,7 +283,7 @@ namespace WinRTGuidPatcher
             var spanOfByteArrayCtor = module.ImportReference(
                 new MethodReference(".ctor", module.TypeSystem.Void, spanOfByte)
                 {
-                    Parameters = { new ParameterDefinition(span.Resolve().GenericParameters[0]) }
+                    Parameters = { new ParameterDefinition(new ArrayType(span.Resolve().GenericParameters[0])) }
                 },
                 spanOfByte);
 
@@ -292,14 +298,16 @@ namespace WinRTGuidPatcher
                 });
 
             var spanSliceStartMethod = module.ImportReference(
-                new MethodReference("Slice", module.TypeSystem.Void, spanOfByte)
+                new MethodReference("Slice", spanOfByte, spanOfByte)
                 {
+                    HasThis = true,
                     Parameters = { new ParameterDefinition(module.TypeSystem.Int32) }
                 });
 
             var spanSliceStartLengthMethod = module.ImportReference(
-                new MethodReference("Slice", module.TypeSystem.Void, spanOfByte)
+                new MethodReference("Slice", spanOfByte, spanOfByte)
                 {
+                    HasThis = true,
                     Parameters = { new ParameterDefinition(module.TypeSystem.Int32), new ParameterDefinition(module.TypeSystem.Int32) }
                 });
 
@@ -341,6 +349,7 @@ namespace WinRTGuidPatcher
 
             // int offset = 16;
             var offset = new VariableDefinition(module.TypeSystem.Int32);
+            staticCtor.Body.Variables.Add(offset);
             il.Emit(OpCodes.Ldc_I4, 16);
             il.Emit(OpCodes.Stloc, offset);
 
@@ -349,18 +358,19 @@ namespace WinRTGuidPatcher
                 // locals[i].CopyTo(fullSignatureBuffer.Slice(offset));
                 il.Emit(OpCodes.Ldloca, signatureParts[i]);
                 il.Emit(OpCodes.Dup);
-                il.Emit(OpCodes.Ldloc, fullSignatureBuffer);
+                il.Emit(OpCodes.Ldloca, fullSignatureBuffer);
                 il.Emit(OpCodes.Ldloc, offset);
                 il.Emit(OpCodes.Call, spanSliceStartMethod);
                 il.Emit(OpCodes.Call, copyToMethod);
                 // offset += locals[i].Length;
                 il.Emit(OpCodes.Call, readOnlySpanOfByteLength);
                 il.Emit(OpCodes.Ldloc, offset);
-                il.Emit(OpCodes.Add_Ovf);
+                il.Emit(OpCodes.Add);
                 il.Emit(OpCodes.Stloc, offset);
             }
 
             var destination = new VariableDefinition(spanOfByte);
+            staticCtor.Body.Variables.Add(destination);
 
             // Span<byte> destination = stackalloc byte[160];
             il.Emit(OpCodes.Ldc_I4, 160);
@@ -370,20 +380,51 @@ namespace WinRTGuidPatcher
             il.Emit(OpCodes.Stloc, destination);
 
             // SHA1.HashData(fullSignatureBuffer, destination);
-            var sha1Type = CecilExtensions.FindTypeReference(module, "System.Security.Cryptography", "SHA1", "System.Security.Cryptography.Algorithms");
-            var hashDataMethod = module.ImportReference(new MethodReference("HashData", module.ImportReference(module.TypeSystem.Int32)) { HasThis = false });
+            var sha1Type = CecilExtensions.FindTypeReference(module, "System.Security.Cryptography", "SHA1", "System.Security.Cryptography.Algorithms", false);
+            var hashDataMethod = module.ImportReference(
+                new MethodReference("HashData", module.ImportReference(module.TypeSystem.Int32), sha1Type)
+                {
+                    HasThis = false,
+                    Parameters =
+                    {
+                        new ParameterDefinition(readOnlySpanOfByte),
+                        new ParameterDefinition(spanOfByte)
+                    }
+                });
+
+            var spanToReadOnlySpan = module.ImportReference(
+                new MethodReference("op_Implicit",
+                    new GenericInstanceType(module.ImportReference(readOnlySpanOfByte.Resolve()))
+                    {
+                        GenericArguments = { span.Resolve().GenericParameters[0] }
+                    },
+                    spanOfByte)
+                {
+                    HasThis = false,
+                    Parameters =
+                    {
+                        new ParameterDefinition(
+                            new GenericInstanceType(span)
+                            {
+                                GenericArguments = { span.Resolve().GenericParameters[0] }
+                            })
+                    }
+                });
+
             il.Emit(OpCodes.Ldloc, fullSignatureBuffer);
+            il.Emit(OpCodes.Call, spanToReadOnlySpan);
             il.Emit(OpCodes.Ldloc, destination);
             il.Emit(OpCodes.Call, hashDataMethod);
 
             // Fix endianness, bytes
-            var memoryExtensions = CecilExtensions.FindTypeReference(module, "System", "MemoryExtensions", "System.Memory");
-            var reverseMethod = new MethodReference("Reverse", module.TypeSystem.Void)
+            var memoryExtensions = CecilExtensions.FindTypeReference(module, "System", "MemoryExtensions", "System.Memory", false);
+            var reverseMethod = new MethodReference("Reverse", module.TypeSystem.Void, memoryExtensions)
             {
-                HasThis = false
+                HasThis = false,
             };
             var reverseMethodGenericParam = new GenericParameter(reverseMethod);
             reverseMethod.GenericParameters.Add(reverseMethodGenericParam);
+            reverseMethod.Parameters.Add(new ParameterDefinition(new GenericInstanceType(span) { GenericArguments = { reverseMethodGenericParam } }));
             reverseMethod = module.ImportReference(
                 new GenericInstanceMethod(reverseMethod)
                 {
@@ -408,7 +449,7 @@ namespace WinRTGuidPatcher
             il.Emit(OpCodes.Call, reverseMethod);
 
             // Encode rfc time/version/clock/reserved fields
-            var getItemMethod = module.ImportReference(new MethodReference("get_Item", new ByReferenceType(span.GenericParameters[0]), spanOfByte) { Parameters = { new ParameterDefinition(module.TypeSystem.Int32) } });
+            var getItemMethod = module.ImportReference(new MethodReference("get_Item", new ByReferenceType(span.Resolve().GenericParameters[0]), spanOfByte) { Parameters = { new ParameterDefinition(module.TypeSystem.Int32) } });
 
             // t[7] = (byte) ((t[7] & 0x0f) | (5 << 4));
             il.Emit(OpCodes.Ldloca, destination);
@@ -438,8 +479,9 @@ namespace WinRTGuidPatcher
 
             // cacheField = destination.Slice(0, 16).ToArray()
 
-            var toArrayMethod = module.ImportReference(new MethodReference("ToArray", new ArrayType(span.GenericParameters[0]), spanOfByte));
+            var toArrayMethod = module.ImportReference(new MethodReference("ToArray", new ArrayType(span.Resolve().GenericParameters[0]), spanOfByte));
             var spanTemp = new VariableDefinition(spanOfByte);
+            staticCtor.Body.Variables.Add(spanTemp);
 
             il.Emit(OpCodes.Ldloca, destination);
             il.Emit(OpCodes.Ldc_I4_0);
@@ -448,7 +490,7 @@ namespace WinRTGuidPatcher
             il.Emit(OpCodes.Stloc, spanTemp);
             il.Emit(OpCodes.Ldloca, spanTemp);
             il.Emit(OpCodes.Call, toArrayMethod);
-            il.Emit(OpCodes.Stfld, cacheField);
+            il.Emit(OpCodes.Stsfld, new FieldReference(cacheField.Name, cacheField.FieldType, selfInstantiatedCacheType));
             il.Emit(OpCodes.Ret);
         }
     }
