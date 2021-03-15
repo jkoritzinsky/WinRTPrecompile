@@ -199,7 +199,7 @@ namespace WinRTGuidPatcher
                     case StringStep(string str):
                         {
                             byte[] segmentBytes = Encoding.UTF8.GetBytes(str);
-                            var staticDataField = new FieldDefinition($"<SignatureDataPart={i}>", FieldAttributes.Private | FieldAttributes.InitOnly | FieldAttributes.Static, CecilExtensions.GetOrCreateDataBlockType(implementationDetailsType, segmentBytes.Length))
+                            var staticDataField = new FieldDefinition($"<SignatureDataPart={i}>", FieldAttributes.Private | FieldAttributes.InitOnly | FieldAttributes.Static | FieldAttributes.HasFieldRVA, CecilExtensions.GetOrCreateDataBlockType(implementationDetailsType, segmentBytes.Length))
                             {
                                 InitialValue = segmentBytes
                             };
@@ -329,7 +329,7 @@ namespace WinRTGuidPatcher
 
             if (staticNamespaceBytesField.Resolve() is null)
             {
-                staticNamespaceBytesField = new FieldDefinition(WinRTPinterfaceDataBlockName, FieldAttributes.Static | FieldAttributes.Assembly, CecilExtensions.GetOrCreateDataBlockType(implementationDetailsType, 16))
+                staticNamespaceBytesField = new FieldDefinition(WinRTPinterfaceDataBlockName, FieldAttributes.Static | FieldAttributes.Assembly | FieldAttributes.InitOnly | FieldAttributes.HasFieldRVA, CecilExtensions.GetOrCreateDataBlockType(implementationDetailsType, 16))
                 {
                     InitialValue = WinRTPinterfaceNamespace.ToByteArray()
                 };

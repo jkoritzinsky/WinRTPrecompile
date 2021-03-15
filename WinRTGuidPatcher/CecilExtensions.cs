@@ -43,8 +43,7 @@ namespace WinRTGuidPatcher
 
         internal static void WriteIIDDataGetterBody(MethodDefinition method, TypeReference type, Guid iidValue, TypeDefinition dataBlockType, TypeDefinition parentType, MethodReference readOnlySpanOfByteCtor)
         {
-            // TODO: Figure out how to get Mono.Cecil to write out the InitialValue field.
-            var guidDataField = new FieldDefinition($"<IIDDataField>{type.FullName}", FieldAttributes.Private | FieldAttributes.Static | FieldAttributes.InitOnly, dataBlockType)
+            var guidDataField = new FieldDefinition($"<IIDDataField>{type.FullName}", FieldAttributes.Private | FieldAttributes.Static | FieldAttributes.InitOnly | FieldAttributes.HasFieldRVA, dataBlockType)
             {
                 InitialValue = iidValue.ToByteArray()
             };
