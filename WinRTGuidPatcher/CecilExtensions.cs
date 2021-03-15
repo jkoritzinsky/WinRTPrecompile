@@ -79,7 +79,7 @@ namespace WinRTGuidPatcher
             td = new TypeDefinition(null, typeName, TypeAttributes.AutoClass | TypeAttributes.Sealed | TypeAttributes.NestedAssembly | TypeAttributes.SequentialLayout | TypeAttributes.AnsiClass, new TypeReference("System", "ValueType", parentType.Module, parentType.Module.TypeSystem.CoreLibrary))
             {
                 PackingSize = 1,
-                ClassSize = 16
+                ClassSize = size
             };
 
             parentType.NestedTypes.Add(td);
