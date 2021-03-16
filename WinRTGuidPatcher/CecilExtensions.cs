@@ -10,27 +10,28 @@ namespace WinRTGuidPatcher
 {
     static class CecilExtensions
     {
-        internal static Guid? ReadGuidFromAttribute(this TypeReference type, TypeReference guidAttributeType)
+        internal static Guid? ReadGuidFromAttribute(this TypeReference type, TypeReference guidAttributeType, AssemblyDefinition winrtRuntimeAssembly)
         {
             TypeDefinition def = type.Resolve();
             var guidAttr = def.CustomAttributes.FirstOrDefault(attr => attr.AttributeType.Resolve() == guidAttributeType);
             if (guidAttr is null)
             {
-                TypeDefinition abiType = def.GetCswinrtAbiTypeDefinition();
+                TypeDefinition abiType = def.GetCswinrtAbiTypeDefinition(winrtRuntimeAssembly);
                 if (abiType is not null)
                 {
-                    return abiType.ReadGuidFromAttribute(guidAttributeType);
+                    return abiType.ReadGuidFromAttribute(guidAttributeType, winrtRuntimeAssembly);
                 }
                 return null;
             }
             return new Guid((string)guidAttr.ConstructorArguments[0].Value);
         }
 
-        internal static TypeDefinition GetCswinrtAbiTypeDefinition(this TypeReference type)
+        internal static TypeDefinition GetCswinrtAbiTypeDefinition(this TypeReference type, AssemblyDefinition winrtRuntimeAssembly)
         {
             var resolvedType = type.Resolve();
 
-            return resolvedType.Module.GetType($"ABI.{resolvedType.FullName}");
+            return resolvedType.Module.GetType($"ABI.{resolvedType.FullName}") ??
+                winrtRuntimeAssembly.MainModule.GetType($"ABI.{resolvedType.FullName}");
         }
 
         internal static MethodDefinition CreateIIDDataGetter(TypeReference type, Guid iidValue, TypeDefinition dataBlockType, TypeDefinition parentType, TypeReference readOnlySpanOfByte, MethodReference readOnlySpanOfByteCtor)

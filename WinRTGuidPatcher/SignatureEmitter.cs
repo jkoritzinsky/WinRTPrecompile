@@ -72,7 +72,12 @@ namespace WinRTGuidPatcher
             signatureSteps.Add(new RuntimeCustomSignatureStep(customSignatureMethod));
         }
 
-        public void EmitGuidGetter(TypeDefinition guidDataBlockType, TypeDefinition implementationDetailsType, TypeReference readOnlySpanofByte, MethodReference readOnlySpanOfByteCtor, TypeDefinition guidGeneratorType)
+        public void EmitGuidGetter(
+            TypeDefinition guidDataBlockType,
+            TypeDefinition implementationDetailsType,
+            TypeReference readOnlySpanofByte,
+            MethodReference readOnlySpanOfByteCtor,
+            TypeDefinition guidGeneratorType)
         {
             if (currentStringBuilder is not null)
             {

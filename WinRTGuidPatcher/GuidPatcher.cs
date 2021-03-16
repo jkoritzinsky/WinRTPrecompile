@@ -15,6 +15,7 @@ namespace WinRTGuidPatcher
     class GuidPatcher
     {
         private readonly AssemblyDefinition assembly;
+        private readonly AssemblyDefinition winRTRuntimeAssembly;
         private readonly TypeDefinition guidType;
         private readonly GenericInstanceType readOnlySpanOfByte;
         private readonly MethodReference readOnlySpanOfByteCtor;
@@ -42,6 +43,8 @@ namespace WinRTGuidPatcher
                 SymbolReaderProvider = new DefaultSymbolReaderProvider(false),
                 ApplyWindowsRuntimeProjections = false
             });
+
+            winRTRuntimeAssembly = assemblyResolver.Resolve(new AssemblyNameReference("WinRT.Runtime", default));
 
             guidImplementationDetailsType = new TypeDefinition(null, "<GuidPatcherImplementationDetails>", TypeAttributes.AutoClass | TypeAttributes.Sealed, assembly.MainModule.TypeSystem.Object);
 
@@ -99,7 +102,7 @@ namespace WinRTGuidPatcher
                 getHelperTypeMethod = typeExtensionsType.Methods.First(m => m.Name == "GetHelperType");
             }
 
-            signatureGenerator = new SignatureGenerator(assembly, guidAttributeType!);
+            signatureGenerator = new SignatureGenerator(assembly, guidAttributeType!, winRTRuntimeAssembly);
         }
 
         public int ProcessAssembly()
@@ -253,7 +256,7 @@ namespace WinRTGuidPatcher
 
             if (!ClosedTypeGuidDataMapping.TryGetValue(type, out var guidDataMethod))
             {
-                Guid? guidValue = type.ReadGuidFromAttribute(guidAttributeType!);
+                Guid? guidValue = type.ReadGuidFromAttribute(guidAttributeType!, winRTRuntimeAssembly);
                 if (guidValue == null)
                 {
                     return false;

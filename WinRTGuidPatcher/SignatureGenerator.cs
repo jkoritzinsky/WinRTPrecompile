@@ -50,13 +50,15 @@ namespace WinRTGuidPatcher
 
     sealed class SignatureGenerator
     {
-        private AssemblyDefinition assembly;
-        private TypeDefinition guidAttributeType;
+        private readonly AssemblyDefinition assembly;
+        private readonly TypeDefinition guidAttributeType;
+        private readonly AssemblyDefinition winRTRuntimeAssembly;
 
-        public SignatureGenerator(AssemblyDefinition assembly, TypeDefinition guidAttributeType)
+        public SignatureGenerator(AssemblyDefinition assembly, TypeDefinition guidAttributeType, AssemblyDefinition  winRTRuntimeAssembly)
         {
             this.assembly = assembly;
             this.guidAttributeType = guidAttributeType;
+            this.winRTRuntimeAssembly = winRTRuntimeAssembly;
         }
 
         public SignaturePart GetSignatureParts(TypeReference type)
@@ -94,7 +96,7 @@ namespace WinRTGuidPatcher
             }
 
             type = typeDef.IsInterface ? (CreateAuthoringMetadataTypeReference(type).Resolve() ?? type) : type;
-            if (type == assembly.MainModule.TypeSystem.Object.Resolve())
+            if (typeDef == assembly.MainModule.TypeSystem.Object.Resolve())
             {
                 return new BasicSignaturePart(SignatureType.iinspectable);
             }
@@ -108,7 +110,7 @@ namespace WinRTGuidPatcher
                     signatureParts.Add(GetSignatureParts(arg));
                 }
 
-                Guid? baseGuid = type.ReadGuidFromAttribute(guidAttributeType);
+                Guid? baseGuid = type.ReadGuidFromAttribute(guidAttributeType, winRTRuntimeAssembly);
                 if (baseGuid == null)
                 { 
                     throw new InvalidOperationException();
@@ -162,10 +164,10 @@ namespace WinRTGuidPatcher
                 return new RuntimeClassSignature(type, GetSignatureParts(iface));
             }
 
-            Guid? guidAttributeValue = type.ReadGuidFromAttribute(guidAttributeType);
+            Guid? guidAttributeValue = type.ReadGuidFromAttribute(guidAttributeType, winRTRuntimeAssembly);
             if (guidAttributeValue == null)
             {
-                throw new InvalidOperationException();
+                throw new InvalidOperationException($"Unable to read IID attribute value for {type.FullName}.");
             }
 
             if (typeDef.BaseType?.Name == "MulticastDelegate")
