@@ -245,8 +245,8 @@ namespace WinRTGuidPatcher
                         {
                             // byte[] bytes = Encoding.UTF8.GetBytes(customSignatureMethod())
                             il.Emit(OpCodes.Call, utf8EncodingGetter);
-                            il.Emit(OpCodes.Callvirt, customSignatureMethod);
-                            il.Emit(OpCodes.Call, encodingGetBytes);
+                            il.Emit(OpCodes.Call, customSignatureMethod);
+                            il.Emit(OpCodes.Callvirt, encodingGetBytes);
                             il.Emit(OpCodes.Dup);
                             // <locals[i]> = new ReadOnlySpan<byte>(bytes);
                             il.Emit(OpCodes.Newobj, readOnlySpanOfByteArrayCtor);
